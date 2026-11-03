@@ -1,8 +1,7 @@
 name: collect
 
+# 정기 수집은 상시 켜진 PC에서 3분마다 한다 (GitHub 정기 실행은 늦고 불규칙). 이 워크플로는 PC가 꺼졌을 때 수동 실행용.
 on:
-  schedule:
-    - cron: '*/10 * * * *'   # 10분마다 (GitHub 사정으로 몇 분~수십 분 늦어질 수 있음)
   workflow_dispatch:
 
 permissions:
