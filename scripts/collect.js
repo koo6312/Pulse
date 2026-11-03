@@ -6,7 +6,8 @@ const path = require('path');
 
 const URL = 'https://www.hanteochart.com/ko/charts/album/real';
 const MATCH = { album: 'PULSE', artist: '리센느' };
-const DATA = path.join(__dirname, '..', 'data');
+// 데이터는 data 브랜치에 둔다 (Actions는 그 브랜치를 DATA_DIR에 체크아웃). 로컬 기본값은 ./data
+const DATA = path.resolve(process.env.DATA_DIR || path.join(__dirname, '..', 'data'));
 const num = s => Number(String(s).replace(/,/g, '')) || 0;
 const readJson = (f, fb) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return fb; } };
 

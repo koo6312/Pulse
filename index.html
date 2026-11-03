@@ -212,12 +212,14 @@ td.empty { color: var(--line); }
   </section>
 
   <footer class="foot">
-    <span>출처: <a href="https://www.hanteochart.com/ko/charts/album/real" target="_blank" rel="noopener">한터차트 실시간 음반차트</a>의 PULSE 버전별 판매량 합계 · 약 30분마다 갱신</span>
+    <span>출처: <a href="https://www.hanteochart.com/ko/charts/album/real" target="_blank" rel="noopener">한터차트 실시간 음반차트</a>의 PULSE 버전별 판매량 합계 · 약 10분마다 확인</span>
     <span>실시간 차트 100위 안에 든 버전만 집계되며, 한터 공식 초동 집계와 다를 수 있습니다. 팬 제작 비공식 페이지입니다.</span>
   </footer>
 </div>
 
 <script>
+// 판매량 기록은 data 브랜치에 있다 (커밋해도 사이트가 재배포되지 않도록 분리). 로컬 확인 시에는 ./data/
+const DATA_BASE = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'data/' : 'https://raw.githubusercontent.com/koo6312/Pulse/data/';
 const RELEASE = '2026-11-03';
 const DAYS = 7;
 const VERSIONS = ['Standard', 'Guardian', 'Limited', 'Wappen', 'QR'];
@@ -514,8 +516,8 @@ async function load() {
   try {
     const t = Date.now();
     const [h, st] = await Promise.all([
-      fetch('data/history.json?t=' + t).then(r => { if (!r.ok) throw new Error('history ' + r.status); return r.json(); }),
-      fetch('data/status.json?t=' + t).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(DATA_BASE + 'history.json?t=' + t, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('history ' + r.status); return r.json(); }),
+      fetch(DATA_BASE + 'status.json?t=' + t, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
     lastHist = h; lastStatus = st;
     $('err').hidden = true;
