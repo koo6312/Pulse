@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RESCENE PULSE 판매량</title>
+<meta name="description" content="리센느 미니 4집 PULSE 초동 판매량 트래커 — 한터차트 실시간 음반차트 판매량 합계">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 앨범 로고 헤더 → 지금 숫자(누적·오늘·커리어하이 달성률) → 7일 표 → 버전별 표 → Bloom 비교 꺾은선 → 역대 초동 막대. 한 열, 레퍼런스 이미지와 같은 순서. */
+:root {
+  --paper: #f3f4f6;
+  --card: #ffffff;
+  --ink: #1c222b;
+  --muted: #69727e;
+  --line: #dde1e6;
+  --slate: #8796a5;        /* 레퍼런스 표 머리 색 */
+  --slate-ink: #ffffff;
+  --pulse: #4d6f96;        /* PULSE */
+  --pulse-soft: #e3eaf2;
+  --bloom: #b36ad0;        /* Bloom (커리어하이) */
+  --sat: #2b4fa3;
+  --sun: #d23a3a;
+  --up: #2f8a5b;
+  --f-logo: "Cormorant Garamond", "Times New Roman", serif;
+  --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #12151a; --card: #1a1e25; --ink: #e9ecf0; --muted: #98a1ac; --line: #2c323b;
+    --slate: #46525f; --slate-ink: #f1f3f5; --pulse: #8fb0d6; --pulse-soft: #233040; --bloom: #cf93e6;
+    --sat: #7f9ef0; --sun: #f07474; --up: #6fcf9b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #12151a; --card: #1a1e25; --ink: #e9ecf0; --muted: #98a1ac; --line: #2c323b;
+  --slate: #46525f; --slate-ink: #f1f3f5; --pulse: #8fb0d6; --pulse-soft: #233040; --bloom: #cf93e6;
+  --sat: #7f9ef0; --sun: #f07474; --up: #6fcf9b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); }
+body { color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+[hidden] { display: none !important; }
+.wrap {
+  max-width: 760px; margin: 0 auto; display: grid; gap: 22px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+.num { font-variant-numeric: tabular-nums; }
+
+/* header */
+.head { display: grid; gap: 6px; text-align: center; padding-block: 8px 4px; }
+.head .eyebrow { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--slate); letter-spacing: .04em; }
+.logo { font-family: var(--f-logo); font-style: italic; font-weight: 500; font-size: clamp(72px, 18vw, 132px); line-height: .9; color: var(--pulse); letter-spacing: -.01em; margin: 6px 0 2px; }
+.head .rel { font-weight: 700; font-size: 16px; }
+.head .vers { color: var(--muted); font-size: 13px; }
+.head .warn { color: var(--sun); font-size: 13px; font-weight: 500; }
+
+/* now */
+.now { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px; display: grid; gap: 16px; }
+.now-top { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+.big { display: grid; gap: 2px; }
+.big .lbl { font-size: 13px; color: var(--muted); }
+.big .val { font-size: clamp(44px, 11vw, 68px); font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+.big .val small { font-size: .38em; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.today { display: grid; gap: 2px; text-align: right; }
+.today .val { font-size: 26px; font-weight: 700; color: var(--pulse); }
+.today .lbl { font-size: 13px; color: var(--muted); }
+.vs { font-size: 14px; }
+.vs b.up { color: var(--up); } .vs b.down { color: var(--sun); }
+.meter { display: grid; gap: 6px; }
+.meter-row { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.meter-row .name { font-weight: 700; white-space: nowrap; }
+.bar { flex: 1; height: 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--pulse), var(--bloom)); border-radius: 999px; transition: width .8s ease; }
+.meter-row .pct { font-weight: 700; color: var(--muted); min-width: 4.5em; text-align: right; }
+.spark-wrap { display: grid; gap: 4px; }
+.spark-wrap .lbl { font-size: 12px; color: var(--muted); }
+#spark { width: 100%; height: 56px; display: block; }
+.stamp { font-family: var(--f-mono); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+/* tables */
+.tbl-box { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.tbl-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { background: var(--slate); color: var(--slate-ink); font-weight: 700; font-size: 14px; padding: 13px 10px; }
+td { padding: 15px 10px; border-top: 1px solid var(--line); text-align: center; font-size: 15px; }
+td:first-child { font-weight: 700; }
+td.sat { color: var(--sat); } td.sun { color: var(--sun); }
+tr.live td { background: var(--pulse-soft); }
+.pill { display: inline-block; font-size: 11px; font-weight: 700; color: var(--pulse); border: 1px solid currentColor; border-radius: 999px; padding: 1px 7px; margin-left: 6px; vertical-align: 2px; }
+td.empty { color: var(--line); }
+.ver th { font-size: 12px; padding: 10px 6px; }
+.ver td { font-size: 13px; padding: 11px 6px; }
+.ver td:first-child { background: var(--paper); font-size: 12px; }
+.ver tr.sum td { font-weight: 700; background: var(--pulse-soft); }
+
+/* charts */
+.chart { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 14px 12px; display: grid; gap: 8px; }
+.chart h2 { margin: 0 6px; font-size: 15px; }
+.chart svg { width: 100%; height: auto; display: block; }
+.legend { display: flex; gap: 16px; justify-content: center; font-size: 12px; font-weight: 700; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+.foot { font-size: 12px; color: var(--muted); display: grid; gap: 4px; text-align: center; }
+.foot a { color: var(--pulse); }
+.err { background: var(--card); border: 1px solid var(--sun); color: var(--sun); border-radius: 12px; padding: 14px; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <div class="eyebrow"><span>RESCENE</span><span>The 4th Mini ALBUM</span></div>
+    <div class="logo" aria-label="Pulse">Pulse</div>
+    <div class="rel">2026.11.03 Release</div>
+    <div class="vers">Standard (1종) / Guardian (1종) / Limited (1종) / Wappen (1종) / QR (5종) = 총 9종</div>
+    <div class="warn">Limited ver.은 제작사 사정으로 11월 4일 발매</div>
+  </header>
+
+  <div class="err" id="err" hidden></div>
+
+  <section class="now" aria-label="현재 판매량">
+    <div class="now-top">
+      <div class="big">
+        <span class="lbl" id="cumLbl">초동 누적 판매량</span>
+        <span class="val num" id="cum">—</span>
+      </div>
+      <div class="today">
+        <span class="lbl" id="todayLbl">오늘</span>
+        <span class="val num" id="todayVal">—</span>
+      </div>
+    </div>
+    <div class="vs" id="vs"></div>
+    <div class="meter">
+      <div class="meter-row">
+        <span class="name">커리어하이 달성률</span>
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="chBar"><i id="chFill" style="width:0"></i></div>
+        <span class="pct num" id="chPct">0%</span>
+      </div>
+    </div>
+    <div class="spark-wrap">
+      <span class="lbl">오늘 시간대별 누적</span>
+      <svg id="spark" viewBox="0 0 600 56" preserveAspectRatio="none" aria-hidden="true"></svg>
+    </div>
+    <div class="stamp"><span id="aggAt">집계 기준 —</span><span id="checked">확인 —</span></div>
+  </section>
+
+  <section class="tbl-box" aria-label="일별 판매량">
+    <table>
+      <thead><tr><th>날짜</th><th>일일 판매량</th><th>누적 판매량</th></tr></thead>
+      <tbody id="daily"></tbody>
+    </table>
+  </section>
+
+  <section class="tbl-box" aria-label="버전별 판매량">
+    <div class="tbl-scroll">
+      <table class="ver">
+        <thead id="verHead"></thead>
+        <tbody id="verBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="chart" aria-label="Bloom과 누적 판매량 비교">
+    <h2>초동 누적 비교</h2>
+    <svg id="line" viewBox="0 0 720 320" role="img" aria-label="DAY1~DAY7 누적 판매량, Bloom과 PULSE"></svg>
+    <div class="legend"><span><i style="background:var(--bloom)"></i>Bloom (커리어하이)</span><span><i style="background:var(--pulse)"></i>PULSE</span></div>
+  </section>
+
+  <section class="chart" aria-label="역대 앨범 초동">
+    <h2>역대 앨범 초동</h2>
+    <svg id="bars" viewBox="0 0 720 330" role="img" aria-label="역대 앨범 초동 판매량 막대그래프"></svg>
+  </section>
+
+  <footer class="foot">
+    <span>출처: <a href="https://www.hanteochart.com/ko/charts/album/real" target="_blank" rel="noopener">한터차트 실시간 음반차트</a>의 PULSE 버전별 판매량 합계 · 약 30분마다 갱신</span>
+    <span>실시간 차트 100위 안에 든 버전만 집계되며, 한터 공식 초동 집계와 다를 수 있습니다. 팬 제작 비공식 페이지입니다.</span>
+  </footer>
+</div>
+
+<script>
+const RELEASE = '2026-11-03';
+const DAYS = 7;
+const VERSIONS = ['Standard', 'Guardian', 'Limited', 'Wappen', 'QR'];
+const CAREER_HIGH = { name: 'Bloom', total: 104400, daily: [4400, 9600, 25700, 47800, 47800, 77800, 104400] };
+const PAST = [
+  { name: 'UhUh', v: 34100, c: '#e8352e' },
+  { name: 'LOVE ATTACK', v: 33700, c: '#3d9be9' },
+  { name: 'Glow Up', v: 41300, c: '#7c7c7c' },
+  { name: 'Deja Vu', v: 88200, c: '#a7d68a' },
+  { name: 'Bloom', v: 104400, c: '#b36ad0' },
+];
+// 실시간 차트 판매량은 하루 단위로 쌓였다가 자정에 초기화된다고 가정: 날짜별 버전 최대값 = 그날 판매량
+const RESET_DAILY = true;
+
+const $ = id => document.getElementById(id);
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const dayList = [...Array(DAYS)].map((_, i) => {
+  const d = new Date(RELEASE + 'T00:00:00+09:00'); d.setUTCDate(d.getUTCDate() + i);
+  const k = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(d);
+  return { key: k, wd: new Date(k + 'T12:00:00+09:00').getUTCDay() };
+});
+const keyOf = agg => agg.slice(0, 10).replace(/\./g, '-');
+const kstNowKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
+
+function aggregate(history) {
+  const byDay = {};
+  for (const e of history) {
+    const k = keyOf(e.aggregatedAt);
+    const d = byDay[k] || (byDay[k] = { ver: {}, snaps: [] });
+    for (const v of e.versions) d.ver[v.version] = Math.max(d.ver[v.version] || 0, v.sales);
+    d.snaps.push({ at: e.aggregatedAt, total: e.totalSales });
+  }
+  let run = 0;
+  return dayList.map((d, i) => {
+    const got = byDay[d.key];
+    const daySales = got ? Object.values(got.ver).reduce((a, b) => a + b, 0) : null;
+    if (daySales != null) run = RESET_DAILY ? run + daySales : daySales;
+    return { ...d, i, ver: got ? got.ver : {}, snaps: got ? got.snaps : [], day: daySales, cum: daySales != null ? run : null };
+  });
+}
+
+function render(history, status) {
+  const days = aggregate(history);
+  const todayKey = kstNowKey();
+  const filled = days.filter(d => d.cum != null);
+  const cur = filled[filled.length - 1];
+  const live = cur && cur.key === todayKey;
+  const cum = cur ? cur.cum : 0;
+
+  $('cum').innerHTML = `${fmt(cum)}<small>장</small>`;
+  $('cumLbl').textContent = cur ? `초동 누적 판매량 · DAY${cur.i + 1}${live ? ' 집계 중' : ''}` : '초동 누적 판매량';
+  $('todayLbl').textContent = cur ? `${live ? '오늘' : cur.key.slice(5).replace('-', '/')} 판매량` : '오늘';
+  $('todayVal').textContent = cur ? '+' + fmt(cur.day) : '—';
+  if (cur) {
+    const bloomSame = CAREER_HIGH.daily[cur.i];
+    const diff = cum - bloomSame;
+    $('vs').innerHTML = `Bloom DAY${cur.i + 1} 누적 ${fmt(bloomSame)} 대비 <b class="${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))}</b>`;
+  }
+  const pct = Math.min(100, cum / CAREER_HIGH.total * 100);
+  $('chFill').style.width = pct.toFixed(1) + '%';
+  $('chPct').textContent = pct.toFixed(1) + '%';
+  $('chBar').setAttribute('aria-valuenow', pct.toFixed(1));
+  if (status) {
+    $('aggAt').textContent = `집계 기준 (KST) ${status.aggregatedAt}`;
+    $('checked').textContent = `마지막 확인 ${new Date(status.lastChecked).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+  }
+
+  // 오늘 시간대별 누적 (하루 판매량 스냅샷)
+  const sp = cur ? cur.snaps : [];
+  const toMin = at => { const [h, m] = at.slice(11).split(':').map(Number); return h * 60 + m; };
+  let s = '';
+  if (sp.length) {
+    const maxV = Math.max(...sp.map(x => x.total), 1);
+    const X = m => m / 1440 * 600, Y = v => 52 - v / maxV * 46;
+    const pts = [[0, 0], ...sp.map(x => [toMin(x.at), x.total])];
+    const d = pts.map(([m, v], i) => `${i ? 'L' : 'M'}${X(m).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+    const lastX = X(toMin(sp[sp.length - 1].at));
+    s += `<path d="${d} L${lastX.toFixed(1)},52 L0,52 Z" fill="${css('--pulse-soft')}"/>`;
+    s += `<path d="${d}" fill="none" stroke="${css('--pulse')}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+    s += `<circle cx="${lastX}" cy="${Y(sp[sp.length - 1].total)}" r="3.5" fill="${css('--pulse')}"/>`;
+  }
+  $('spark').innerHTML = s;
+
+  // 일별 표
+  $('daily').innerHTML = days.map(d => {
+    const cls = d.wd === 6 ? 'sat' : d.wd === 0 ? 'sun' : '';
+    const isLive = d.key === todayKey && d.cum != null;
+    return `<tr class="${isLive ? 'live' : ''}"><td class="${cls}">${d.key.replace(/-/g, '.')} (${WD[d.wd]})${isLive ? '<span class="pill">집계 중</span>' : ''}</td>` +
+      `<td class="num ${d.day == null ? 'empty' : ''}">${d.day == null ? '' : fmt(d.day)}</td>` +
+      `<td class="num ${d.cum == null ? 'empty' : ''}">${d.cum == null ? '' : fmt(d.cum)}</td></tr>`;
+  }).join('');
+
+  // 버전별 표
+  const extra = [...new Set(days.flatMap(d => Object.keys(d.ver)))].filter(v => !VERSIONS.includes(v));
+  const vers = [...VERSIONS, ...extra];
+  $('verHead').innerHTML = `<tr><th></th>${days.map(d => `<th>DAY${d.i + 1}</th>`).join('')}<th>TOTAL</th></tr>`;
+  const cell = n => n ? fmt(n) : '';
+  $('verBody').innerHTML = vers.map(v => {
+    const row = days.map(d => d.ver[v] || 0);
+    const total = RESET_DAILY ? row.reduce((a, b) => a + b, 0) : Math.max(0, ...row);
+    return `<tr><td>${v}</td>${row.map(n => `<td class="num">${cell(n)}</td>`).join('')}<td class="num"><b>${cell(total)}</b></td></tr>`;
+  }).join('') + `<tr class="sum"><td>합계</td>${days.map(d => `<td class="num">${cell(d.day)}</td>`).join('')}<td class="num">${cell(cum)}</td></tr>`;
+
+  drawLine(days);
+  drawBars(cum);
+}
+
+function axisMax(v) { const step = v > 120000 ? 50000 : 50000; return Math.max(150000, Math.ceil(v * 1.15 / step) * step); }
+
+function drawLine(days) {
+  const W = 720, H = 320, L = 70, R = 30, T = 24, B = 46;
+  const pulse = days.map(d => d.cum);
+  const top = axisMax(Math.max(CAREER_HIGH.total, ...pulse.filter(v => v != null)));
+  const X = i => L + 24 + i / (DAYS - 1) * (W - L - R - 24);
+  const Y = v => T + (1 - v / top) * (H - T - B);
+  const ink = css('--ink'), muted = css('--muted'), line = css('--line');
+  // 같은 DAY에서 높은 쪽 라벨은 점 위, 낮은 쪽은 점 아래
+  const above = (a, b, i) => a[i] != null && (b[i] == null || a[i] >= b[i]);
+  let s = '';
+  for (let v = 0; v <= top; v += 50000) {
+    s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${line}"/>`;
+    s += `<text x="${L - 10}" y="${Y(v) + 4}" text-anchor="end" font-size="12" font-weight="700" fill="${ink}">${fmt(v)}</text>`;
+  }
+  for (let i = 0; i < DAYS; i++) s += `<text x="${X(i)}" y="${H - B + 24}" text-anchor="middle" font-size="12" font-weight="700" fill="${ink}">DAY${i + 1}</text>`;
+  const series = (vals, other, color) => {
+    const pts = vals.map((v, i) => v == null ? null : [X(i), Y(v), v, i]).filter(Boolean);
+    if (!pts.length) return '';
+    let o = `<polyline points="${pts.map(p => p[0] + ',' + p[1]).join(' ')}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    pts.forEach(p => {
+      const dy = above(vals, other, p[3]) || p[1] + 20 > Y(0) - 4 ? -11 : 20;
+      o += `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="${color}"/>`;
+      o += `<text x="${p[0]}" y="${p[1] + dy}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${color}">${fmt(p[2])}</text>`;
+    });
+    return o;
+  };
+  s += series(CAREER_HIGH.daily, pulse, css('--bloom'));
+  s += series(pulse, CAREER_HIGH.daily, css('--pulse'));
+  $('line').innerHTML = s;
+}
+
+function drawBars(cum) {
+  const W = 720, H = 330, L = 70, R = 20, T = 30, B = 50;
+  const items = [...PAST, { name: 'PULSE', v: cum, c: css('--pulse'), now: true }];
+  const top = axisMax(Math.max(...items.map(x => x.v)));
+  const ink = css('--ink'), line = css('--line'), muted = css('--muted');
+  const slot = (W - L - R) / items.length, bw = Math.min(46, slot * .5);
+  const Y = v => T + (1 - v / top) * (H - T - B);
+  let s = '';
+  for (let v = 0; v <= top; v += 50000) {
+    s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${line}"/>`;
+    s += `<text x="${L - 10}" y="${Y(v) + 4}" text-anchor="end" font-size="12" font-weight="700" fill="${ink}">${fmt(v)}</text>`;
+  }
+  items.forEach((it, i) => {
+    const cx = L + slot * (i + .5), y = Y(it.v);
+    s += `<rect x="${cx - bw / 2}" y="${y}" width="${bw}" height="${Y(0) - y}" rx="3" fill="${it.c}"/>`;
+    s += `<text x="${cx}" y="${y - 8}" text-anchor="middle" font-size="12" font-weight="700" fill="${ink}">${fmt(it.v)}</text>`;
+    s += `<text x="${cx}" y="${H - B + 22}" text-anchor="middle" font-size="12" font-weight="700" fill="${it.now ? css('--pulse') : ink}">${it.name}</text>`;
+    if (it.now) s += `<text x="${cx}" y="${H - B + 38}" text-anchor="middle" font-size="11" fill="${muted}">진행 중</text>`;
+  });
+  $('bars').innerHTML = s;
+}
+
+let lastHist = null, lastStatus = null;
+async function load() {
+  try {
+    const t = Date.now();
+    const [h, st] = await Promise.all([
+      fetch('data/history.json?t=' + t).then(r => { if (!r.ok) throw new Error('history ' + r.status); return r.json(); }),
+      fetch('data/status.json?t=' + t).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]);
+    lastHist = h; lastStatus = st;
+    $('err').hidden = true;
+    render(h, st);
+  } catch (e) {
+    $('err').hidden = false;
+    $('err').textContent = `판매량 데이터를 불러오지 못했습니다 (${e.message}). 5분 뒤 다시 시도합니다.`;
+    if (!lastHist) render([], null);
+  }
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => lastHist && render(lastHist, lastStatus));
+load();
+setInterval(load, 5 * 60 * 1000);
+</script>
+</body>
+</html>

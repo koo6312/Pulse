@@ -1,0 +1,36 @@
+name: collect
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # 30분마다 (GitHub 사정으로 몇 분~수십 분 늦어질 수 있음)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npx puppeteer browsers install chrome
+      - run: node scripts/collect.js
+      - name: commit data
+        run: |
+          git config user.name "pulse-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet && exit 0
+          git commit -m "data: $(jq -r .aggregatedAt data/status.json) 판매량 $(jq -r .totalSales data/status.json)"
+          git pull --rebase --autostash
+          git push

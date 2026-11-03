@@ -1,0 +1,11 @@
+{
+  "name": "rescene-pulse-tracker",
+  "private": true,
+  "description": "RESCENE PULSE album sales tracker (Hanteo realtime chart)",
+  "scripts": {
+    "collect": "node scripts/collect.js"
+  },
+  "dependencies": {
+    "puppeteer": "^23.11.1"
+  }
+}
