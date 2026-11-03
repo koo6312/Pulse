@@ -71,6 +71,9 @@ async function scrape() {
   const histFile = path.join(DATA, 'history.json');
   const history = readJson(histFile, []);
   const prev = history[history.length - 1];
+  // 한터가 가끔 옛 차트(예: 11/3 18:30에 9/29 차트)를 내려준다 → PULSE가 없거나 집계 시각이 뒤로 가면 저장하지 않는다
+  if (!versions.length) throw new Error(`no PULSE rows (aggregatedAt ${snap.when || '?'})`);
+  if (prev && entry.aggregatedAt < prev.aggregatedAt) throw new Error(`stale chart ${entry.aggregatedAt} < ${prev.aggregatedAt}`);
   const key = e => JSON.stringify(e.versions.map(v => [v.version, v.sales]).sort());
   const sameDay = prev && prev.aggregatedAt.slice(0, 10) === entry.aggregatedAt.slice(0, 10);
   const changed = !prev || !sameDay || key(prev) !== key(entry);
