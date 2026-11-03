@@ -254,12 +254,5 @@
    }
   ],
   "totalSales": 95742
- },
- {
-  "fetchedAt": "2026-11-03T09:30:30.964Z",
-  "aggregatedAt": "2026.09.29 14:20",
-  "chartSize": 100,
-  "versions": [],
-  "totalSales": 0
  }
 ]
