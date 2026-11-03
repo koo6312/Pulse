@@ -318,5 +318,37 @@
    }
   ],
   "totalSales": 131782
+ },
+ {
+  "fetchedAt": "2026-11-03T10:41:25.084Z",
+  "aggregatedAt": "2026.11.03 19:40",
+  "chartSize": 100,
+  "versions": [
+   {
+    "rank": 1,
+    "version": "Standard",
+    "sales": 52556,
+    "index": 73578.4
+   },
+   {
+    "rank": 2,
+    "version": "QR",
+    "sales": 60133,
+    "index": 36079.8
+   },
+   {
+    "rank": 7,
+    "version": "Guardian",
+    "sales": 7176,
+    "index": 21528
+   },
+   {
+    "rank": 9,
+    "version": "Wappen",
+    "sales": 11926,
+    "index": 8944.5
+   }
+  ],
+  "totalSales": 131791
  }
 ]
