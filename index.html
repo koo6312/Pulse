@@ -78,9 +78,28 @@ body { color: var(--ink); font-family: var(--f-body); font-size: 15px; line-heig
 .bar { flex: 1; height: 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--pulse), var(--bloom)); border-radius: 999px; transition: width .8s ease; }
 .meter-row .pct { font-weight: 700; color: var(--muted); min-width: 4.5em; text-align: right; }
-.spark-wrap { display: grid; gap: 4px; }
-.spark-wrap .lbl { font-size: 12px; color: var(--muted); }
-#spark { width: 100%; height: 56px; display: block; }
+.intra-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 6px; }
+.intra-t { display: grid; gap: 2px; min-width: 0; }
+.intra-sum { font-size: 13px; color: var(--muted); }
+.intra-sum b { color: var(--pulse); font-size: 15px; }
+.nav { display: flex; gap: 6px; }
+.nav button {
+  font: 700 13px var(--f-body); color: var(--ink); background: var(--paper);
+  border: 1px solid var(--line); border-radius: 999px; padding: 7px 13px; cursor: pointer;
+}
+.nav button:hover:not(:disabled) { border-color: var(--pulse); color: var(--pulse); }
+.nav button:disabled { opacity: .35; cursor: default; }
+.nav button:focus-visible, .intra-stage:focus-visible { outline: 2px solid var(--pulse); outline-offset: 2px; }
+.intra-stage { position: relative; touch-action: pan-y; cursor: grab; user-select: none; overflow: hidden; border-radius: 8px; }
+.intra-stage.dragging { cursor: grabbing; }
+.intra-stage svg { transition: transform .25s ease, opacity .25s ease; }
+.intra-stage.dragging svg { transition: none; }
+.tip {
+  position: absolute; pointer-events: none; transform: translate(-50%, -100%);
+  background: var(--ink); color: var(--card); font-size: 12px; font-weight: 700;
+  padding: 5px 9px; border-radius: 6px; white-space: nowrap;
+}
+.intra-foot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 0 6px; }
 .stamp { font-family: var(--f-mono); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 
 /* tables */
@@ -144,11 +163,25 @@ td.empty { color: var(--line); }
         <span class="pct num" id="chPct">0%</span>
       </div>
     </div>
-    <div class="spark-wrap">
-      <span class="lbl">오늘 시간대별 누적</span>
-      <svg id="spark" viewBox="0 0 600 56" preserveAspectRatio="none" aria-hidden="true"></svg>
-    </div>
     <div class="stamp"><span id="aggAt">집계 기준 —</span><span id="checked">확인 —</span></div>
+  </section>
+
+  <section class="chart intra" aria-label="시간대별 누적 판매량">
+    <div class="intra-h">
+      <div class="intra-t">
+        <h2 id="intraTitle">시간대별 누적</h2>
+        <span class="intra-sum num" id="intraSum"></span>
+      </div>
+      <div class="nav">
+        <button type="button" id="prevDay">◀ 전날</button>
+        <button type="button" id="nextDay">다음날 ▶</button>
+      </div>
+    </div>
+    <div class="intra-stage" id="intraStage" tabindex="0" aria-label="좌우로 드래그하거나 방향키로 날짜를 바꿀 수 있습니다">
+      <svg id="intra" viewBox="0 0 720 280" role="img"></svg>
+      <div class="tip num" id="tip" hidden></div>
+    </div>
+    <div class="intra-foot"><span id="intraNote"></span><span>좌우로 드래그해서 다른 날짜 보기</span></div>
   </section>
 
   <section class="tbl-box" aria-label="일별 판매량">
@@ -254,21 +287,13 @@ function render(history, status) {
     $('checked').textContent = `마지막 확인 ${new Date(status.lastChecked).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
   }
 
-  // 오늘 시간대별 누적 (하루 판매량 스냅샷)
-  const sp = cur ? cur.snaps : [];
-  const toMin = at => { const [h, m] = at.slice(11).split(':').map(Number); return h * 60 + m; };
-  let s = '';
-  if (sp.length) {
-    const maxV = Math.max(...sp.map(x => x.total), 1);
-    const X = m => m / 1440 * 600, Y = v => 52 - v / maxV * 46;
-    const pts = [[0, 0], ...sp.map(x => [toMin(x.at), x.total])];
-    const d = pts.map(([m, v], i) => `${i ? 'L' : 'M'}${X(m).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
-    const lastX = X(toMin(sp[sp.length - 1].at));
-    s += `<path d="${d} L${lastX.toFixed(1)},52 L0,52 Z" fill="${css('--pulse-soft')}"/>`;
-    s += `<path d="${d}" fill="none" stroke="${css('--pulse')}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
-    s += `<circle cx="${lastX}" cy="${Y(sp[sp.length - 1].total)}" r="3.5" fill="${css('--pulse')}"/>`;
-  }
-  $('spark').innerHTML = s;
+  // 시간대별 그래프: 처음 열 때와 새 날짜가 생길 때는 가장 최근 날짜로
+  intra.days = days;
+  intra.maxIdx = cur ? cur.i : 0;
+  intra.liveIdx = live ? cur.i : -1;
+  intra.status = status;
+  if (intra.sel == null || intra.sel > intra.maxIdx || intra.followLatest) intra.sel = intra.maxIdx;
+  drawIntra();
 
   // 일별 표
   $('daily').innerHTML = days.map(d => {
@@ -293,6 +318,141 @@ function render(history, status) {
   drawLine(days);
   drawBars(cum);
 }
+
+// ---------- 시간대별 누적 ----------
+const intra = { days: [], sel: null, maxIdx: 0, liveIdx: -1, status: null, followLatest: true, geo: null };
+const toMin = at => { const [h, m] = at.slice(11).split(':').map(Number); return h * 60 + m; };
+const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+function niceStep(max, n) {
+  const raw = max / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+
+function drawIntra() {
+  const d = intra.days[intra.sel];
+  // 좁은 화면에서는 좌표계를 줄여 글자가 작아지지 않게 하고 눈금 간격을 넓힌다
+  const narrow = $('intraStage').clientWidth < 520;
+  const W = narrow ? 400 : 720, H = narrow ? 260 : 280, L = narrow ? 52 : 66, R = narrow ? 14 : 22, T = 22, B = 36;
+  const fs = narrow ? 13 : 11.5, hourStep = narrow ? 6 : 3;
+  $('intra').setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const ink = css('--ink'), muted = css('--muted'), line = css('--line'), pulse = css('--pulse');
+  const isLive = intra.sel === intra.liveIdx;
+  $('prevDay').disabled = intra.sel <= 0;
+  $('nextDay').disabled = intra.sel >= intra.maxIdx;
+  if (!d) { $('intra').innerHTML = ''; return; }
+  $('intraTitle').textContent = `${d.key.slice(5).replace('-', '/')} (${WD[d.wd]}) DAY${d.i + 1} 시간대별 누적`;
+  $('intraSum').innerHTML = d.day != null ? `그날 판매량 <b>${fmt(d.day)}</b>장${isLive ? ' · 집계 중' : ''}` : '기록 없음';
+
+  const snaps = d.snaps.map(x => ({ m: toMin(x.at), v: x.total }));
+  const endMin = isLive && intra.status ? Math.max(toMin(intra.status.aggregatedAt), snaps.length ? snaps[snaps.length - 1].m : 0) : 1440;
+  const maxV = Math.max(1, ...snaps.map(x => x.v));
+  const step = niceStep(maxV, 4), top = Math.ceil(maxV * 1.08 / step) * step;
+  const X = m => L + m / 1440 * (W - L - R);
+  const Y = v => T + (1 - v / top) * (H - T - B);
+  intra.geo = { X, L, R, W, H, snaps, endMin, Y };
+
+  let s = '';
+  for (let v = 0; v <= top + 1e-6; v += step) {
+    s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${line}"/>`;
+    s += `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="${fs}" font-weight="700" fill="${muted}">${fmt(v)}</text>`;
+  }
+  for (let h = 0; h <= 24; h += hourStep) {
+    const x = X(h * 60);
+    s += `<line x1="${x}" x2="${x}" y1="${T}" y2="${H - B}" stroke="${line}" stroke-dasharray="${h % 6 ? '2 4' : ''}"/>`;
+    s += `<text x="${x}" y="${H - B + 20}" text-anchor="middle" font-size="${fs}" font-weight="700" fill="${muted}">${h}시</text>`;
+  }
+  if (snaps.length) {
+    // 판매량은 갱신 시각에 계단식으로 오른다. 첫 기록 전 구간은 관측하지 못했으므로 점선.
+    const first = snaps[0];
+    s += `<line x1="${X(0)}" y1="${Y(0)}" x2="${X(first.m)}" y2="${Y(first.v)}" stroke="${pulse}" stroke-width="1.5" stroke-dasharray="4 4" opacity=".7"/>`;
+    let path = `M${X(first.m)},${Y(first.v)}`;
+    for (let k = 1; k < snaps.length; k++) path += ` H${X(snaps[k].m)} V${Y(snaps[k].v)}`;
+    path += ` H${X(endMin)}`;
+    s += `<path d="${path} V${Y(0)} H${X(first.m)} Z" fill="${css('--pulse-soft')}"/>`;
+    s += `<path d="${path}" fill="none" stroke="${pulse}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    snaps.forEach(p => { s += `<circle cx="${X(p.m)}" cy="${Y(p.v)}" r="3.5" fill="${pulse}"/>`; });
+    const last = snaps[snaps.length - 1];
+    const lx = Math.min(X(endMin), W - R - 4);
+    s += `<text x="${lx}" y="${Y(last.v) - 10}" text-anchor="end" font-size="13" font-weight="700" fill="${ink}">${fmt(last.v)}</text>`;
+    if (isLive) {
+      s += `<line x1="${X(endMin)}" x2="${X(endMin)}" y1="${T}" y2="${H - B}" stroke="${pulse}" stroke-width="1.5"/>`;
+      s += `<text x="${X(endMin) + 5}" y="${T + 11}" font-size="11" font-weight="700" fill="${pulse}">${hhmm(endMin)}</text>`;
+    }
+    s += `<line id="cross" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="${ink}" stroke-width="1" opacity="0"/>`;
+    s += `<circle id="crossDot" r="5" fill="${card()}" stroke="${pulse}" stroke-width="2.5" opacity="0"/>`;
+    $('intraNote').textContent = `기록 ${snaps.length}회 · 첫 기록 ${hhmm(first.m)}${first.m > 0 ? ' (이전은 점선)' : ''}`;
+  } else {
+    s += `<text x="${(L + W - R) / 2}" y="${(T + H - B) / 2}" text-anchor="middle" font-size="14" fill="${muted}">이 날짜의 기록이 아직 없습니다</text>`;
+    $('intraNote').textContent = '';
+  }
+  $('intra').setAttribute('aria-label', `${d.key} 시간대별 누적 판매량 그래프`);
+  $('intra').innerHTML = s;
+  $('tip').hidden = true;
+}
+const card = () => css('--card');
+
+function goDay(delta) {
+  const n = Math.max(0, Math.min(intra.maxIdx, intra.sel + delta));
+  if (n === intra.sel) return false;
+  intra.sel = n;
+  intra.followLatest = n === intra.maxIdx;
+  drawIntra();
+  return true;
+}
+$('prevDay').addEventListener('click', () => goDay(-1));
+$('nextDay').addEventListener('click', () => goDay(1));
+$('intraStage').addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') { goDay(-1); e.preventDefault(); }
+  if (e.key === 'ArrowRight') { goDay(1); e.preventDefault(); }
+});
+
+// 드래그: 오른쪽으로 끌면 전날, 왼쪽으로 끌면 다음날. 짧게 누르거나 올려두면 그 시각의 값을 보여준다.
+(() => {
+  const stage = $('intraStage'), svg = $('intra'), tip = $('tip');
+  let start = null;
+  const valueAt = m => {
+    const g = intra.geo; if (!g || !g.snaps.length || m < g.snaps[0].m || m > g.endMin) return null;
+    let v = g.snaps[0].v; for (const p of g.snaps) if (p.m <= m) v = p.v; return v;
+  };
+  function showTip(clientX) {
+    const g = intra.geo; if (!g) return;
+    const r = svg.getBoundingClientRect(), sx = (clientX - r.left) / r.width * g.W;
+    const m = Math.round(Math.max(0, Math.min(1440, (sx - g.L) / (g.W - g.L - g.R) * 1440)));
+    const v = valueAt(m), cross = $('cross'), dot = $('crossDot');
+    if (v == null || !cross) { tip.hidden = true; cross && cross.setAttribute('opacity', 0); dot && dot.setAttribute('opacity', 0); return; }
+    const x = g.X(m), y = g.Y(v);
+    cross.setAttribute('x1', x); cross.setAttribute('x2', x); cross.setAttribute('opacity', .35);
+    dot.setAttribute('cx', x); dot.setAttribute('cy', y); dot.setAttribute('opacity', 1);
+    tip.hidden = false;
+    tip.textContent = `${hhmm(m)} · ${fmt(v)}장`;
+    tip.style.left = Math.max(50, Math.min(r.width - 50, x / g.W * r.width)) + 'px';
+    tip.style.top = (y / g.H * r.height - 10) + 'px';
+  }
+  stage.addEventListener('pointerdown', e => { start = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false }; });
+  stage.addEventListener('pointermove', e => {
+    if (!start) { if (e.pointerType === 'mouse') showTip(e.clientX); return; }
+    const dx = e.clientX - start.x, dy = e.clientY - start.y;
+    if (!start.moved && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+      start.moved = true; stage.classList.add('dragging'); stage.setPointerCapture(start.id); tip.hidden = true;
+    }
+    if (start.moved) {
+      const edge = (dx > 0 && intra.sel <= 0) || (dx < 0 && intra.sel >= intra.maxIdx);
+      svg.style.transform = `translateX(${edge ? dx * .25 : dx}px)`;
+      svg.style.opacity = 1 - Math.min(.5, Math.abs(dx) / 600);
+    }
+  });
+  const end = e => {
+    if (!start) return;
+    const dx = e.clientX - start.x, moved = start.moved;
+    start = null; stage.classList.remove('dragging');
+    svg.style.transform = ''; svg.style.opacity = '';
+    if (moved && Math.abs(dx) > 60) goDay(dx > 0 ? -1 : 1);
+    else if (!moved) showTip(e.clientX);
+  };
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+  stage.addEventListener('pointerleave', e => { if (!start && e.pointerType === 'mouse') { tip.hidden = true; $('cross')?.setAttribute('opacity', 0); $('crossDot')?.setAttribute('opacity', 0); } });
+})();
 
 function axisMax(v) { const step = v > 120000 ? 50000 : 50000; return Math.max(150000, Math.ceil(v * 1.15 / step) * step); }
 
@@ -367,6 +527,7 @@ async function load() {
   }
 }
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => lastHist && render(lastHist, lastStatus));
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => intra.days.length && drawIntra(), 150); });
 load();
 setInterval(load, 5 * 60 * 1000);
 </script>
