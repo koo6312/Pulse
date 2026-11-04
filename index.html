@@ -230,9 +230,9 @@ const PAST = [
   { name: 'Deja Vu', v: 88200, c: '#a7d68a' },
   { name: 'Bloom', v: 104400, c: '#b36ad0' },
 ];
-// 한터 실시간 판매량은 11/4 0시에 초기화되지 않고 그대로 이어졌다(131,893). 다만 이후 초기화될 수도 있으므로
-// 버전별 값이 직전의 절반 아래로 떨어지면 초기화로 보고 직전 값을 누적 기반에 더한다 → 두 경우 모두 맞게 계산된다.
-const RESET_DROP = 0.5;
+// 한터 실시간 판매량은 '그날 판매량'이지만 자정이 아니라 새 날짜의 첫 갱신 때 0부터 다시 시작한다
+// (11/4: 0시엔 전날 값 그대로, 10:00 갱신에서 QR 60,198→24,590 · Guardian 7,176→1 · Wappen 11,963→6,810, Standard는 100위 밖).
+// 버전마다 줄어든 폭이 달라 버전별로 판정하면 놓친다(Wappen이 −로 나왔음) → 차트 전체 단위로 판정한다.
 
 const $ = id => document.getElementById(id);
 const fmt = n => Math.round(n).toLocaleString('en-US');
@@ -249,12 +249,20 @@ const kstNowKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul
 
 const sumOf = o => Object.values(o).reduce((a, b) => a + b, 0);
 function aggregate(history) {
-  // 버전별 초동 누적 = 초기화 전 값들의 합(base) + 현재 값(last)
+  // 버전별 초동 누적 = 지난 날짜들 판매량의 합(base) + 지금 날짜 판매량(last)
+  // 날짜가 바뀐 뒤 어느 버전이든 값이 처음 줄어든 기록 = 초기화. 모든 버전의 값을 base로 넘기고,
+  // 그 기록에 없는 버전(100위 밖)은 새 날짜 판매량 0으로 본다.
   const base = {}, last = {}, byDay = {}, series = [];
+  let period = null;
   for (const e of [...history].sort((a, b) => a.aggregatedAt < b.aggregatedAt ? -1 : 1)) {
+    const k = keyOf(e.aggregatedAt);
+    if (period == null) period = k;
+    if (k !== period && e.versions.some(({ version: v, sales: s }) => last[v] != null && s < last[v])) {
+      for (const v in last) { base[v] += last[v]; last[v] = 0; }
+      period = k;
+    }
     for (const { version: v, sales: s } of e.versions) {
       if (last[v] == null) base[v] = 0;
-      else if (s < last[v] * RESET_DROP) base[v] += last[v];
       last[v] = s;
     }
     const end = {}; for (const v in last) end[v] = base[v] + last[v];
