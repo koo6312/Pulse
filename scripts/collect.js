@@ -9,6 +9,14 @@ const MATCH = { album: 'PULSE', artist: '리센느' };
 // 데이터는 data 브랜치에 둔다 (Actions는 그 브랜치를 DATA_DIR에 체크아웃). 로컬 기본값은 ./data
 const DATA = path.resolve(process.env.DATA_DIR || path.join(__dirname, '..', 'data'));
 const num = s => Number(String(s).replace(/,/g, '')) || 0;
+// 'PULSE: 미니앨범 4집, Standard ver.' → 'Standard'. 형식이 다르게 올라와도(괄호·Edition 등) 다른 버전과 섞이지 않도록
+// 못 읽으면 앨범명 전체를 버전 이름으로 쓴다 — Standard로 몰면 같은 이름 두 줄이 생겨 합계와 리셋 판정이 꼬인다
+function versionOf(name) {
+  let v = (name.match(/,\s*([^,]+)$/) || name.match(/[(\[]([^)\]]+)[)\]]\s*$/) || [, ''])[1];
+  v = v.replace(/\s*[(\[][^)\]]*[)\]]\s*$/, '').replace(/\s*\b(ver(sion)?\.?|edition)\s*$/i, '').trim();
+  if (/limited|리미티드/i.test(v)) return 'Limited';
+  return v || name;
+}
 const readJson = (f, fb) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return fb; } };
 
 async function scrape() {
@@ -55,10 +63,14 @@ async function scrape() {
     .filter(r => r.name && r.name.includes(MATCH.album) && r.artist === MATCH.artist)
     .map(r => ({
       rank: r.rank,
-      version: (r.name.match(/,\s*([^,]+?)\s*ver\.?$/i) || [, 'Standard'])[1],
+      version: versionOf(r.name),
+      name: r.name,
       sales: num(r.sales),
       index: num(r.index),
     }));
+  // 같은 버전 이름이 두 줄이면 각자 원래 앨범명으로 구분한다
+  const dup = new Set(versions.map(v => v.version).filter((x, i, a) => a.indexOf(x) !== i));
+  for (const v of versions) if (dup.has(v.version)) v.version = v.name;
   const entry = {
     fetchedAt: new Date().toISOString(),
     aggregatedAt: snap.when,
