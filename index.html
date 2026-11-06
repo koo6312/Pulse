@@ -679,30 +679,45 @@ function drawBars(cum) {
     <td class="num">${fmt(it.v)}${it.now ? '<span class="pill">진행 중</span>' : ''}</td></tr>`).join('');
 }
 
-// data 브랜치 파일은 GitHub API로 읽는다: raw 주소는 지역별로 최대 5분 옛 파일을 주지만 API는 즉시 최신이다.
-// cache:'no-cache'면 브라우저가 ETag로 재검증하고, 바뀌지 않은 응답(304)은 API 사용 한도(시간당 60회)에 들어가지 않는다.
-// force면 브라우저 캐시를 건너뛴다. API가 막히면 raw 주소로 대신 읽는다.
+// data 브랜치 파일은 GitHub API와 raw 주소로 읽는다. API는 즉시 최신이지만 무인증이라 IP당 시간 60회이고 304 응답도 차감된다
+// (1분마다 API를 보던 때 PC 탭 하나가 한도를 다 써서 raw로 넘어가 몇 분 늦게 반영됐다, 11/6). raw는 한도가 없지만 최대 몇 분 옛 파일을 준다.
+// 그래서 1분마다 확인은 raw로 하고, API는 한터 갱신이 몰리는 매시 0~19분엔 1분마다, 그 밖엔 5분마다만 쓴다(탭 하나 시간당 약 25회).
+// 마지막 API 사용 시각과 한도 초과 시 풀리는 시각은 localStorage에 두어 같은 브라우저의 탭끼리 나눠 쓴다.
 const API = 'https://api.github.com/repos/koo6312/Pulse/contents/';
 const RAW = 'https://raw.githubusercontent.com/koo6312/Pulse/data/';
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-async function getData(name, force) {
+const API_KEY = 'pulse-api';
+const apiState = () => ls.get(API_KEY) || { last: 0, until: 0 };
+const apiOpen = () => Date.now() >= apiState().until;
+function apiDue() {
+  const gap = new Date(Date.now()).getUTCMinutes() < 20 ? 50 * 1000 : (5 * 60 - 10) * 1000;
+  return apiOpen() && Date.now() - apiState().last >= gap;
+}
+// api면 한도가 남아 있을 때 API로 읽고(force면 브라우저 캐시도 건너뜀), 아니거나 막히면 raw로 읽는다
+async function getData(name, { api = false, force = false } = {}) {
   if (LOCAL) return fetch('data/' + name + '?t=' + Date.now(), { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(name + ' ' + r.status); return r.json(); });
-  try {
-    const r = await fetch(API + name + '?ref=data', { cache: force ? 'reload' : 'no-cache', headers: { Accept: 'application/vnd.github.raw+json' } });
-    if (r.ok) return await r.json();
-    throw new Error('api ' + r.status);
-  } catch (e) {
-    const r = await fetch(RAW + name + '?t=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) throw new Error(name + ' ' + r.status);
-    return r.json();
+  if (api && apiOpen()) {
+    try {
+      ls.set(API_KEY, { ...apiState(), last: Date.now() });
+      const r = await fetch(API + name + '?ref=data', { cache: force ? 'reload' : 'no-cache', headers: { Accept: 'application/vnd.github.raw+json' } });
+      if (r.ok) return await r.json();
+      if (r.status === 403 || r.status === 429) {
+        const reset = Number(r.headers.get('x-ratelimit-reset')) * 1000;
+        ls.set(API_KEY, { last: Date.now(), until: reset > Date.now() ? reset : Date.now() + 10 * 60 * 1000 });
+      }
+    } catch {}
   }
+  const r = await fetch(RAW + name + '?t=' + Date.now(), { cache: 'no-store' });
+  if (!r.ok) throw new Error(name + ' ' + r.status);
+  return r.json();
 }
 
-// sessionStorage는 그래프 보던 구간과 새로고침 시각만 기억한다(못 쓰는 환경이면 그냥 넘어간다)
-const ss = {
-  get: k => { try { return JSON.parse(sessionStorage.getItem(k)); } catch { return null; } },
-  set: (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch {} },
-};
+// sessionStorage는 그래프 보던 구간과 새로고침 시각을, localStorage는 API 사용 기록만 기억한다(못 쓰는 환경이면 그냥 넘어간다)
+const store = s => ({
+  get: k => { try { return JSON.parse(s().getItem(k)); } catch { return null; } },
+  set: (k, v) => { try { s().setItem(k, JSON.stringify(v)); } catch {} },
+});
+const ss = store(() => sessionStorage), ls = store(() => localStorage);
 
 // 새 판매량이 올라오면 페이지를 통째로 다시 연다(?r=…로 페이지·데이터 캐시를 모두 건너뜀).
 // 그 자리에서 history만 다시 받으면 캐시에 남은 옛 파일과 새 status가 섞여 합산이 꼬일 때가 있었다.
@@ -724,7 +739,7 @@ const histMatches = (h, st) => !st || (h.length > 0 && h[h.length - 1].totalSale
 async function refetchHistory(st) {
   for (let i = 0; i < 3 && !histFresh && st === lastStatus; i++) {
     await new Promise(r => setTimeout(r, 1500));
-    const h = await getData('history.json', true).catch(() => null);
+    const h = await getData('history.json', { api: true, force: true }).catch(() => null);
     if (h && histMatches(h, st) && st === lastStatus) { lastHist = h; histFresh = true; render(h, st); }
   }
 }
@@ -732,13 +747,15 @@ async function refetchHistory(st) {
 let lastHist = null, lastStatus = null, lastSig = '', histFresh = false;
 async function load() {
   try {
-    const st = await getData('status.json');
+    const first = !lastHist;
+    // 처음 열 때(새로고침 포함)는 API로 최신을 받는다. raw가 이미 본 것보다 옛 status를 주면 무시한다
+    const st = await getData('status.json', { api: first || apiDue() });
+    if (lastStatus && st && st.lastChecked < lastStatus.lastChecked) return;
     const sig = st ? `${st.aggregatedAt}|${st.totalSales}|${st.lastChecked}` : '';
     const newData = lastStatus && st && (st.totalSales !== lastStatus.totalSales || keyOf(st.aggregatedAt) !== keyOf(lastStatus.aggregatedAt));
     if (newData && hardReload()) return;
-    const first = !lastHist;
     if (first || !histFresh || newData) {
-      lastHist = await getData('history.json');
+      lastHist = await getData('history.json', { api: first || newData });
       histFresh = histMatches(lastHist, st);
     } else if (sig === lastSig) { $('err').hidden = true; return; }
     lastStatus = st; lastSig = sig;
