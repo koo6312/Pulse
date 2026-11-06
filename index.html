@@ -254,7 +254,7 @@ td.empty { color: var(--line); }
   </section>
 
   <footer class="foot">
-    <span>출처: <a href="https://www.hanteochart.com/ko/charts/album/real" target="_blank" rel="noopener">한터차트 실시간 음반차트</a>의 PULSE 버전별 판매량 합계 · 약 3분마다 확인</span>
+    <span>출처: <a href="https://www.hanteochart.com/ko/charts/album/real" target="_blank" rel="noopener">한터차트 실시간 음반차트</a>의 PULSE 버전별 판매량 합계 · 약 40초마다 확인</span>
     <span>실시간 차트 100위 안에 든 버전만 집계되며, 한터 공식 초동 집계와 다를 수 있습니다. 팬 제작 비공식 페이지입니다.</span>
   </footer>
 </div>
@@ -681,7 +681,8 @@ function drawBars(cum) {
 
 // data 브랜치 파일은 GitHub API와 raw 주소로 읽는다. API는 즉시 최신이지만 무인증이라 IP당 시간 60회이고 304 응답도 차감된다
 // (1분마다 API를 보던 때 PC 탭 하나가 한도를 다 써서 raw로 넘어가 몇 분 늦게 반영됐다, 11/6). raw는 한도가 없지만 최대 몇 분 옛 파일을 준다.
-// 그래서 1분마다 확인은 raw로 하고, API는 한터 갱신이 몰리는 매시 0~19분엔 1분마다, 그 밖엔 5분마다만 쓴다(탭 하나 시간당 약 25회).
+// 그래서 30초마다 확인은 raw로 하고, API는 2분 30초마다만 쓴다(시간당 약 24회 + 새 판매량 때 새로고침하며 2회씩).
+// 한터 갱신은 정시에 몰리지 않고 몇 분마다 불규칙하게 온다(11/6 13:11·13:18·13:30·13:45·14:05·14:13·14:18) → 시간대 구분 없이 같은 간격.
 // 마지막 API 사용 시각과 한도 초과 시 풀리는 시각은 localStorage에 두어 같은 브라우저의 탭끼리 나눠 쓴다.
 const API = 'https://api.github.com/repos/koo6312/Pulse/contents/';
 const RAW = 'https://raw.githubusercontent.com/koo6312/Pulse/data/';
@@ -689,10 +690,8 @@ const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 const API_KEY = 'pulse-api';
 const apiState = () => ls.get(API_KEY) || { last: 0, until: 0 };
 const apiOpen = () => Date.now() >= apiState().until;
-function apiDue() {
-  const gap = new Date(Date.now()).getUTCMinutes() < 20 ? 50 * 1000 : (5 * 60 - 10) * 1000;
-  return apiOpen() && Date.now() - apiState().last >= gap;
-}
+const API_GAP = 150 * 1000, POLL = 30 * 1000;
+const apiDue = () => apiOpen() && Date.now() - apiState().last >= API_GAP - 5000;
 // api면 한도가 남아 있을 때 API로 읽고(force면 브라우저 캐시도 건너뜀), 아니거나 막히면 raw로 읽는다
 async function getData(name, { api = false, force = false } = {}) {
   if (LOCAL) return fetch('data/' + name + '?t=' + Date.now(), { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(name + ' ' + r.status); return r.json(); });
@@ -765,7 +764,7 @@ async function load() {
     if (!histFresh && (first || newData)) refetchHistory(st);
   } catch (e) {
     $('err').hidden = false;
-    $('err').textContent = `판매량 데이터를 불러오지 못했습니다 (${e.message}). 1분 뒤 다시 시도합니다.`;
+    $('err').textContent = `판매량 데이터를 불러오지 못했습니다 (${e.message}). 잠시 뒤 다시 시도합니다.`;
     if (!lastHist) render([], null);
   }
 }
@@ -773,7 +772,7 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => la
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => intra.series.length && drawIntra(), 150); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
 load();
-setInterval(() => { if (!document.hidden) load(); }, 60 * 1000);
+setInterval(() => { if (!document.hidden) load(); }, POLL);
 </script>
 </body>
 </html>
