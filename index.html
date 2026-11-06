@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: 앨범 로고 헤더 → 지금 숫자(누적·오늘·커리어하이 달성률) → 7일 표 → 버전별 표 → Bloom 비교 꺾은선 → 역대 초동 막대. 한 열, 레퍼런스 이미지와 같은 순서. */
+/* Layout: 앨범 로고 헤더 → 지금 숫자(누적·오늘·커리어하이 달성률) → 7일 표 → 버전별 표 → lip bomb(커리어하이) 비교 꺾은선 → 역대 초동 막대. 한 열, 레퍼런스 이미지와 같은 순서. */
 :root {
   --paper: #f3f4f6;
   --card: #ffffff;
@@ -20,7 +20,7 @@
   --slate-ink: #ffffff;
   --pulse: #4d6f96;        /* PULSE */
   --pulse-soft: #e3eaf2;
-  --bloom: #b36ad0;        /* Bloom (커리어하이) */
+  --bloom: #b36ad0;        /* lip bomb (커리어하이) */
   --sat: #2b4fa3;
   --sun: #d23a3a;
   --up: #2f8a5b;
@@ -136,6 +136,14 @@ td.empty { color: var(--line); }
 .past td { font-size: 13px; padding: 10px 6px; word-break: keep-all; }
 .past td:first-child { text-align: left; padding-left: 12px; }
 .past .kind { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+.past .alb { display: flex; align-items: center; gap: 10px; }
+.past .alb img { flex: none; border-radius: 6px; border: 1px solid var(--line); background: var(--paper); }
+@media (max-width: 480px) {
+  .past td { font-size: 12px; padding: 9px 4px; }
+  .past td:first-child { padding-left: 8px; }
+  .past .alb { gap: 7px; }
+  .past .alb img { width: 36px; height: 36px; }
+}
 .past .song { display: block; white-space: nowrap; }
 .past .pill { display: block; width: fit-content; margin: 3px auto 0; }
 
@@ -228,10 +236,10 @@ td.empty { color: var(--line); }
     </div>
   </section>
 
-  <section class="chart" aria-label="Bloom과 누적 판매량 비교">
+  <section class="chart" aria-label="lip bomb과 누적 판매량 비교">
     <h2>초동 누적 비교</h2>
-    <svg id="line" viewBox="0 0 720 320" role="img" aria-label="DAY1~DAY7 누적 판매량, Bloom과 PULSE"></svg>
-    <div class="legend"><span><i style="background:var(--bloom)"></i>Bloom (커리어하이)</span><span><i style="background:var(--pulse)"></i>PULSE</span></div>
+    <svg id="line" viewBox="0 0 720 320" role="img" aria-label="DAY1~DAY7 누적 판매량, lip bomb과 PULSE"></svg>
+    <div class="legend"><span><i style="background:var(--bloom)"></i>lip bomb (커리어하이)</span><span><i style="background:var(--pulse)"></i>PULSE</span></div>
   </section>
 
   <section class="chart" aria-label="역대 앨범 초동">
@@ -255,15 +263,15 @@ td.empty { color: var(--line); }
 const RELEASE = '2026-11-03';
 const DAYS = 7;
 const VERSIONS = ['Standard', 'Guardian', 'Limited', 'Wappen', 'QR'];
-const CAREER_HIGH = { name: 'Bloom', total: 104400, daily: [4400, 9600, 25700, 47800, 47800, 77800, 104400] };
+const CAREER_HIGH = { name: 'lip bomb', total: 104400, daily: [4400, 9600, 25700, 47800, 47800, 77800, 104400] };
 const PAST = [
-  { name: 'Re:Scene', kind: '싱글 1집', date: '2024.03.26', title: 'UhUh', v: 34100, c: '#e8352e' },
-  { name: 'SCENEDROME', kind: '미니 1집', date: '2024.08.27', title: ['LOVE ATTACK', 'Pinball'], v: 33700, c: '#3d9be9' },
-  { name: 'Glow Up', kind: '미니 2집', date: '2025.02.05', title: 'Glow Up', v: 41300, c: '#7c7c7c' },
-  { name: 'Dearest', kind: '싱글 2집', date: '2025.07.02', title: 'Deja Vu', v: 88200, c: '#a7d68a' },
-  { name: 'lip bomb', kind: '미니 3집', date: '2025.11.25', title: ['Heart Drop', 'Bloom'], v: 104400, c: '#b36ad0' },
+  { name: 'Re:Scene', cover: 'rescene', kind: '싱글 1집', date: '2024.03.26', title: 'UhUh', v: 34100, c: '#e8352e' },
+  { name: 'SCENEDROME', cover: 'scenedrome', kind: '미니 1집', date: '2024.08.27', title: ['LOVE ATTACK', 'Pinball'], v: 33700, c: '#3d9be9' },
+  { name: 'Glow Up', cover: 'glowup', kind: '미니 2집', date: '2025.02.05', title: 'Glow Up', v: 41300, c: '#7c7c7c' },
+  { name: 'Dearest', cover: 'dearest', kind: '싱글 2집', date: '2025.07.02', title: 'Deja Vu', v: 88200, c: '#a7d68a' },
+  { name: 'lip bomb', cover: 'lipbomb', kind: '미니 3집', date: '2025.11.25', title: ['Heart Drop', 'Bloom'], v: 104400, c: '#b36ad0' },
 ];
-const NOW_ALBUM = { name: 'PULSE', kind: '미니 4집', date: '2026.11.03', title: 'with' };
+const NOW_ALBUM = { name: 'PULSE', cover: 'pulse', kind: '미니 4집', date: '2026.11.03', title: 'with' };
 // 한터 실시간 판매량은 '그날 판매량'이지만 자정이 아니라 새 날짜의 첫 갱신 때 0부터 다시 시작한다
 // (11/4: 0시엔 전날 값 그대로, 10:00 갱신에서 QR 60,198→24,590 · Guardian 7,176→1 · Wappen 11,963→6,810, Standard는 100위 밖).
 // 버전마다 줄어든 폭이 달라 버전별로 판정하면 놓친다(Wappen이 −로 나왔음) → 차트 전체 단위로 판정한다.
@@ -332,7 +340,7 @@ function render(history, status) {
   if (cur) {
     const bloomSame = CAREER_HIGH.daily[cur.i];
     const diff = cum - bloomSame;
-    $('vs').innerHTML = `Bloom DAY${cur.i + 1} 누적 ${fmt(bloomSame)} 대비 <b class="${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))}</b>`;
+    $('vs').innerHTML = `${CAREER_HIGH.name} DAY${cur.i + 1} 누적 ${fmt(bloomSame)} 대비 <b class="${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))}</b>`;
   }
   const pct = Math.min(100, cum / CAREER_HIGH.total * 100);
   $('chFill').style.width = pct.toFixed(1) + '%';
@@ -665,7 +673,8 @@ function drawBars(cum) {
   });
   $('bars').innerHTML = s;
   $('pastBody').innerHTML = items.map(it => `<tr${it.now ? ' class="live"' : ''}>
-    <td><span class="kind">${it.kind}</span>${it.name}<span class="kind num">${it.date}</span></td>
+    <td><div class="alb"><img src="covers/${it.cover}.jpg" width="48" height="48" alt="${it.name} 앨범 커버" loading="lazy">
+      <div><span class="kind">${it.kind}</span>${it.name}<span class="kind num">${it.date}</span></div></div></td>
     <td>${[].concat(it.title).map(t => `<span class="song">${t}</span>`).join('')}</td>
     <td class="num">${fmt(it.v)}${it.now ? '<span class="pill">진행 중</span>' : ''}</td></tr>`).join('');
 }
