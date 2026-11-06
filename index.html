@@ -131,6 +131,13 @@ td.empty { color: var(--line); }
 .ver td { font-size: 13px; padding: 11px 6px; }
 .ver td:first-child { background: var(--paper); font-size: 12px; }
 .ver tr.sum td { font-weight: 700; background: var(--pulse-soft); }
+.past { margin-top: 6px; }
+.past th { font-size: 12px; padding: 10px 6px; }
+.past td { font-size: 13px; padding: 10px 6px; word-break: keep-all; }
+.past td:first-child { text-align: left; padding-left: 12px; }
+.past .kind { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+.past .song { display: block; white-space: nowrap; }
+.past .pill { display: block; width: fit-content; margin: 3px auto 0; }
 
 /* charts */
 .chart { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 14px 12px; display: grid; gap: 8px; }
@@ -230,6 +237,12 @@ td.empty { color: var(--line); }
   <section class="chart" aria-label="역대 앨범 초동">
     <h2>역대 앨범 초동</h2>
     <svg id="bars" viewBox="0 0 720 330" role="img" aria-label="역대 앨범 초동 판매량 막대그래프"></svg>
+    <div class="tbl-box past">
+      <table>
+        <thead><tr><th>앨범 · 발매일</th><th>타이틀곡</th><th>초동</th></tr></thead>
+        <tbody id="pastBody"></tbody>
+      </table>
+    </div>
   </section>
 
   <footer class="foot">
@@ -244,12 +257,13 @@ const DAYS = 7;
 const VERSIONS = ['Standard', 'Guardian', 'Limited', 'Wappen', 'QR'];
 const CAREER_HIGH = { name: 'Bloom', total: 104400, daily: [4400, 9600, 25700, 47800, 47800, 77800, 104400] };
 const PAST = [
-  { name: 'UhUh', v: 34100, c: '#e8352e' },
-  { name: 'LOVE ATTACK', v: 33700, c: '#3d9be9' },
-  { name: 'Glow Up', v: 41300, c: '#7c7c7c' },
-  { name: 'Deja Vu', v: 88200, c: '#a7d68a' },
-  { name: 'Bloom', v: 104400, c: '#b36ad0' },
+  { name: 'Re:Scene', kind: '싱글 1집', date: '2024.03.26', title: 'UhUh', v: 34100, c: '#e8352e' },
+  { name: 'SCENEDROME', kind: '미니 1집', date: '2024.08.27', title: ['LOVE ATTACK', 'Pinball'], v: 33700, c: '#3d9be9' },
+  { name: 'Glow Up', kind: '미니 2집', date: '2025.02.05', title: 'Glow Up', v: 41300, c: '#7c7c7c' },
+  { name: 'Dearest', kind: '싱글 2집', date: '2025.07.02', title: 'Deja Vu', v: 88200, c: '#a7d68a' },
+  { name: 'lip bomb', kind: '미니 3집', date: '2025.11.25', title: ['Heart Drop', 'Bloom'], v: 104400, c: '#b36ad0' },
 ];
+const NOW_ALBUM = { name: 'PULSE', kind: '미니 4집', date: '2026.11.03', title: 'with' };
 // 한터 실시간 판매량은 '그날 판매량'이지만 자정이 아니라 새 날짜의 첫 갱신 때 0부터 다시 시작한다
 // (11/4: 0시엔 전날 값 그대로, 10:00 갱신에서 QR 60,198→24,590 · Guardian 7,176→1 · Wappen 11,963→6,810, Standard는 100위 밖).
 // 버전마다 줄어든 폭이 달라 버전별로 판정하면 놓친다(Wappen이 −로 나왔음) → 차트 전체 단위로 판정한다.
@@ -631,8 +645,8 @@ function drawLine(days) {
 }
 
 function drawBars(cum) {
-  const W = 720, H = 330, L = 70, R = 20, T = 30, B = 50;
-  const items = [...PAST, { name: 'PULSE', v: cum, c: css('--pulse'), now: true }];
+  const W = 720, H = 330, L = 70, R = 20, T = 30, B = 58;
+  const items = [...PAST, { ...NOW_ALBUM, v: cum, c: css('--pulse'), now: true }];
   const top = axisMax(Math.max(...items.map(x => x.v)));
   const ink = css('--ink'), line = css('--line'), muted = css('--muted');
   const slot = (W - L - R) / items.length, bw = Math.min(46, slot * .5);
@@ -646,10 +660,14 @@ function drawBars(cum) {
     const cx = L + slot * (i + .5), y = Y(it.v);
     s += `<rect x="${cx - bw / 2}" y="${y}" width="${bw}" height="${Y(0) - y}" rx="3" fill="${it.c}"/>`;
     s += `<text x="${cx}" y="${y - 8}" text-anchor="middle" font-size="12" font-weight="700" fill="${ink}">${fmt(it.v)}</text>`;
-    s += `<text x="${cx}" y="${H - B + 22}" text-anchor="middle" font-size="12" font-weight="700" fill="${it.now ? css('--pulse') : ink}">${it.name}</text>`;
-    if (it.now) s += `<text x="${cx}" y="${H - B + 38}" text-anchor="middle" font-size="11" fill="${muted}">진행 중</text>`;
+    s += `<text x="${cx}" y="${H - B + 22}" text-anchor="middle" font-size="13" font-weight="700" fill="${it.now ? css('--pulse') : ink}">${it.name}</text>`;
+    s += `<text x="${cx}" y="${H - B + 40}" text-anchor="middle" font-size="11" fill="${muted}">${it.now ? '진행 중' : it.kind}</text>`;
   });
   $('bars').innerHTML = s;
+  $('pastBody').innerHTML = items.map(it => `<tr${it.now ? ' class="live"' : ''}>
+    <td><span class="kind">${it.kind}</span>${it.name}<span class="kind num">${it.date}</span></td>
+    <td>${[].concat(it.title).map(t => `<span class="song">${t}</span>`).join('')}</td>
+    <td class="num">${fmt(it.v)}${it.now ? '<span class="pill">진행 중</span>' : ''}</td></tr>`).join('');
 }
 
 // data 브랜치 파일은 GitHub API로 읽는다: raw 주소는 지역별로 최대 5분 옛 파일을 주지만 API는 즉시 최신이다.
