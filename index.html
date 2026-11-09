@@ -8,6 +8,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script>
+// 방문 통계(GoatCounter, 페이지에는 아무것도 표시하지 않음). 판매량이 바뀌어 페이지가 스스로 새로고침한 경우(?r=)는 세지 않고,
+// 주소 뒤 추적 파라미터(?fbclid= 등)는 떼서 한 페이지로 모은다. ?r=는 본문 스크립트가 곧 지우므로 여기서 먼저 읽어 둔다.
+window.goatcounter = { path: (p => () => p)(new URLSearchParams(location.search).has('r') ? null : location.pathname) };
+</script>
+<script data-goatcounter="https://koo6312.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 <style>
 /* Layout: 앨범 로고 헤더 → 지금 숫자(누적·오늘·커리어하이 달성률) → 7일 표 → 버전별 표 → lip bomb(커리어하이) 비교 꺾은선 → 역대 초동 막대. 한 열, 레퍼런스 이미지와 같은 순서. */
 :root {
