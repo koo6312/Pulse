@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>RESCENE PULSE 판매량</title>
-<meta name="description" content="리센느 미니 4집 PULSE 초동 판매량 트래커 — 한터차트 실시간 음반차트 판매량 합계">
+<meta name="description" content="리센느 미니 4집 PULSE 초동·총판 판매량 트래커 — 한터차트 실시간 음반차트 판매량 합계">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -87,6 +87,9 @@ body { color: var(--ink); font-family: var(--f-body); font-size: 15px; line-heig
 .today .lbl { font-size: 13px; color: var(--muted); }
 .vs { font-size: 14px; }
 .vs b.up { color: var(--up); } .vs b.down { color: var(--sun); }
+.vs { display: grid; gap: 3px; word-break: keep-all; }
+.mu { color: var(--muted); font-weight: 500; font-size: .9em; }
+tr.cut td { font-weight: 700; background: var(--paper); border-top: 2px solid var(--slate); }
 .meter { display: grid; gap: 6px; }
 .meter-row { display: flex; align-items: center; gap: 12px; font-size: 13px; }
 .meter-row .name { font-weight: 700; white-space: nowrap; }
@@ -120,7 +123,7 @@ body { color: var(--ink); font-family: var(--f-body); font-size: 15px; line-heig
 .tbl-box { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .tbl-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
-th { background: var(--slate); color: var(--slate-ink); font-weight: 700; font-size: 14px; padding: 13px 10px; }
+th { background: var(--slate); color: var(--slate-ink); font-weight: 700; font-size: 14px; padding: 13px 10px; word-break: keep-all; }
 td { padding: 15px 10px; border-top: 1px solid var(--line); text-align: center; font-size: 15px; }
 td:first-child { font-weight: 700; }
 td.sat { color: var(--sat); } td.sun { color: var(--sun); }
@@ -192,7 +195,7 @@ td.empty { color: var(--line); }
     <div class="vs" id="vs"></div>
     <div class="meter">
       <div class="meter-row">
-        <span class="name">커리어하이 달성률</span>
+        <span class="name" id="chName">커리어하이 달성률</span>
         <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="chBar"><i id="chFill" style="width:0"></i></div>
         <span class="pct num" id="chPct">0%</span>
       </div>
@@ -222,7 +225,7 @@ td.empty { color: var(--line); }
 
   <section class="tbl-box" aria-label="일별 판매량">
     <table>
-      <thead><tr><th>날짜</th><th>일일 판매량</th><th>누적 판매량</th></tr></thead>
+      <thead><tr><th>날짜</th><th>일일 판매량</th><th id="dailyCum">누적 판매량</th></tr></thead>
       <tbody id="daily"></tbody>
     </table>
   </section>
@@ -280,11 +283,15 @@ const $ = id => document.getElementById(id);
 const fmt = n => Math.round(n).toLocaleString('en-US');
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
-const dayList = [...Array(DAYS)].map((_, i) => {
+// 발매일로부터 i일째 날짜(KST). 초동은 DAY1~DAY7(11/3~11/9)이고, 그 뒤 날짜도 계속 모아 총판으로 보여 준다
+const keyAt = i => {
   const d = new Date(RELEASE + 'T00:00:00+09:00'); d.setUTCDate(d.getUTCDate() + i);
-  const k = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(d);
-  return { key: k, wd: new Date(k + 'T12:00:00+09:00').getUTCDay() };
-});
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(d);
+};
+const dayAt = i => { const k = keyAt(i); return { key: k, wd: new Date(k + 'T12:00:00+09:00').getUTCDay() }; };
+const idxOf = k => Math.round((Date.parse(k + 'T00:00:00+09:00') - Date.parse(RELEASE + 'T00:00:00+09:00')) / 86400000);
+const FIRST_END = keyAt(DAYS - 1);
+const dotDate = k => k.slice(5).replace('-', '.');
 const keyOf = agg => agg.slice(0, 10).replace(/\./g, '-');
 const tOf = agg => Date.parse(keyOf(agg) + 'T' + agg.slice(11, 16) + ':00+09:00');
 const kstNowKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
@@ -294,12 +301,14 @@ function aggregate(history) {
   // 버전별 초동 누적 = 지난 날짜들 판매량의 합(base) + 지금 날짜 판매량(last)
   // 날짜가 바뀐 뒤 어느 버전이든 값이 처음 줄어든 기록 = 초기화. 모든 버전의 값을 base로 넘기고,
   // 그 기록에 없는 버전(100위 밖)은 새 날짜 판매량 0으로 본다.
+  // 버전이 하나도 없는 기록(초동 뒤 PULSE가 100위 밖으로 밀려남)이 새 날짜에 오면 그것도 초기화로 본다 —
+  // 0시~첫 갱신 전엔 전날 차트가 그대로라 PULSE가 있었다면 그대로 보였을 것이기 때문.
   const base = {}, last = {}, byDay = {}, series = [];
   let period = null;
   for (const e of [...history].sort((a, b) => a.aggregatedAt < b.aggregatedAt ? -1 : 1)) {
     const k = keyOf(e.aggregatedAt);
     if (period == null) period = k;
-    if (k !== period && e.versions.some(({ version: v, sales: s }) => last[v] != null && s < last[v])) {
+    if (k !== period && (!e.versions.length || e.versions.some(({ version: v, sales: s }) => last[v] != null && s < last[v]))) {
       for (const v in last) { base[v] += last[v]; last[v] = 0; }
       period = k;
     }
@@ -313,8 +322,10 @@ function aggregate(history) {
     series.push({ t: tOf(e.aggregatedAt), v: sumOf(end) });
   }
   // 그날 판매량 = 그날 마지막 누적 − 전날 마지막 누적 (버전별도 같은 방식)
+  // 날짜 칸은 초동 7일 + 기록이 있는 마지막 날까지
+  const n = Math.max(DAYS, ...Object.keys(byDay).map(k => idxOf(k) + 1));
   let prev = {};
-  const days = dayList.map((d, i) => {
+  const days = [...Array(n)].map((_, i) => dayAt(i)).map((d, i) => {
     const got = byDay[d.key];
     if (!got) return { ...d, i, ver: {}, verCum: prev, day: null, cum: null };
     const prevSum = sumOf(prev), cum = sumOf(got.end), ver = {};
@@ -331,17 +342,28 @@ function render(history, status) {
   const filled = days.filter(d => d.cum != null);
   const cur = filled[filled.length - 1];
   const live = cur && cur.key === todayKey;
-  const cum = cur ? cur.cum : 0;
+  const total = cur ? cur.cum : 0;
+  // 초동(DAY1~7) 값은 그대로 두고, 초동이 끝나면 맨 위 큰 숫자는 총판(발매일부터 지금까지)으로 바꾼다
+  const early = days.slice(0, DAYS), c7 = early.filter(d => d.cum != null).pop();
+  const cum = c7 ? c7.cum : 0;
+  const ended = todayKey > FIRST_END || days.length > DAYS;
+  const split = ended && !!cur;
+  const signed = n => `<b class="${n >= 0 ? 'up' : 'down'}">${n >= 0 ? '+' : '−'}${fmt(Math.abs(n))}</b>`;
 
-  $('cum').innerHTML = `${fmt(cum)}<small>장</small>`;
-  $('cumLbl').textContent = cur ? `초동 누적 판매량 · DAY${cur.i + 1}${live ? ' 집계 중' : ''}` : '초동 누적 판매량';
+  $('cum').innerHTML = `${fmt(split ? total : cum)}<small>장</small>`;
+  $('cumLbl').textContent = !cur ? '초동 누적 판매량'
+    : split ? `총판 누적 판매량 · 발매 ${cur.i + 1}일째${live ? ' 집계 중' : ''}`
+    : `초동 누적 판매량 · DAY${cur.i + 1}${live ? ' 집계 중' : ''}`;
   $('todayLbl').textContent = cur ? `${live ? '오늘' : cur.key.slice(5).replace('-', '/')} 판매량` : '오늘';
   $('todayVal').textContent = cur ? '+' + fmt(cur.day) : '—';
-  if (cur) {
+  if (split) {
+    $('vs').innerHTML = `<span class="ln">초동 <span class="mu">${dotDate(RELEASE)}–${dotDate(FIRST_END)}</span> <b>${fmt(cum)}</b>장 · ${CAREER_HIGH.name} 초동 ${fmt(CAREER_HIGH.total)} 대비 ${signed(cum - CAREER_HIGH.total)}</span>` +
+      `<span class="ln">초동 이후 <b class="up">+${fmt(total - cum)}</b>장</span>`;
+  } else if (cur) {
     const bloomSame = CAREER_HIGH.daily[cur.i];
-    const diff = cum - bloomSame;
-    $('vs').innerHTML = `${CAREER_HIGH.name} DAY${cur.i + 1} 누적 ${fmt(bloomSame)} 대비 <b class="${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))}</b>`;
+    $('vs').innerHTML = `<span>${CAREER_HIGH.name} DAY${cur.i + 1} 누적 ${fmt(bloomSame)} 대비 ${signed(cum - bloomSame)}</span>`;
   }
+  $('chName').textContent = split ? '초동 커리어하이 달성률' : '커리어하이 달성률';
   const pct = Math.min(100, cum / CAREER_HIGH.total * 100);
   $('chFill').style.width = pct.toFixed(1) + '%';
   $('chPct').textContent = pct.toFixed(1) + '%';
@@ -359,28 +381,33 @@ function render(history, status) {
   else setView(intra.t0, intra.follow ? extent()[1] : intra.t1);
   drawIntra();
 
-  // 일별 표
-  $('daily').innerHTML = days.map(d => {
+  // 일별 표: 초동 7일 → 초동 합계 줄 → 그 뒤 날짜들(누적 = 총판)
+  const dayRow = d => {
     const cls = d.wd === 6 ? 'sat' : d.wd === 0 ? 'sun' : '';
     const isLive = d.key === todayKey && d.cum != null;
     return `<tr class="${isLive ? 'live' : ''}"><td class="${cls}">${d.key.replace(/-/g, '.')} (${WD[d.wd]})${isLive ? '<span class="pill">집계 중</span>' : ''}</td>` +
       `<td class="num ${d.day == null ? 'empty' : ''}">${d.day == null ? '' : fmt(d.day)}</td>` +
       `<td class="num ${d.cum == null ? 'empty' : ''}">${d.cum == null ? '' : fmt(d.cum)}</td></tr>`;
-  }).join('');
+  };
+  $('daily').innerHTML = early.map(dayRow).join('') + (split
+    ? `<tr class="cut"><td>초동 합계 <span class="mu">DAY1–7</span></td><td class="num" colspan="2">${fmt(cum)}</td></tr>` +
+      days.slice(DAYS).map(dayRow).join('')
+    : '');
+  $('dailyCum').textContent = split ? '누적 (총판)' : '누적 판매량';
 
-  // 버전별 표
+  // 버전별 표: 초동이 끝나면 TOTAL 대신 초동 · 이후 · 총판 세 칸
   const extra = [...new Set(days.flatMap(d => Object.keys(d.ver)))].filter(v => !VERSIONS.includes(v));
   const vers = [...VERSIONS, ...extra];
-  $('verHead').innerHTML = `<tr><th></th>${days.map(d => `<th>DAY${d.i + 1}</th>`).join('')}<th>TOTAL</th></tr>`;
+  $('verHead').innerHTML = `<tr><th></th>${early.map(d => `<th>DAY${d.i + 1}</th>`).join('')}${split ? '<th>초동</th><th>이후</th><th>총판</th>' : '<th>TOTAL</th>'}</tr>`;
   const cell = n => n ? fmt(n) : '';
+  const tail = (a, b) => split ? `<td class="num"><b>${cell(a)}</b></td><td class="num">${cell(b - a)}</td><td class="num"><b>${cell(b)}</b></td>` : `<td class="num"><b>${cell(a)}</b></td>`;
   $('verBody').innerHTML = vers.map(v => {
-    const row = days.map(d => d.ver[v] || 0);
-    const total = cur ? cur.verCum[v] || 0 : 0;
-    return `<tr><td>${v}</td>${row.map(n => `<td class="num">${cell(n)}</td>`).join('')}<td class="num"><b>${cell(total)}</b></td></tr>`;
-  }).join('') + `<tr class="sum"><td>합계</td>${days.map(d => `<td class="num">${cell(d.day)}</td>`).join('')}<td class="num">${cell(cum)}</td></tr>`;
+    const row = early.map(d => d.ver[v] || 0);
+    return `<tr><td>${v}</td>${row.map(n => `<td class="num">${cell(n)}</td>`).join('')}${tail(c7 ? c7.verCum[v] || 0 : 0, cur ? cur.verCum[v] || 0 : 0)}</tr>`;
+  }).join('') + `<tr class="sum"><td>합계</td>${early.map(d => `<td class="num">${cell(d.day)}</td>`).join('')}${tail(cum, total)}</tr>`;
 
-  drawLine(days);
-  drawBars(cum);
+  drawLine(early);
+  drawBars(cum, split);
 }
 
 // ---------- 시간대별 누적: 발매일부터 하나로 이어진 그래프. 휠·핀치로 확대/축소, 드래그로 이동 ----------
@@ -477,7 +504,14 @@ function drawIntra() {
   // 위쪽 DAY 표시: 각 날짜 구간에서 보이는 부분 왼쪽에
   for (let d = dayStart(t0); d < t1; d += DAYMS) {
     const i = Math.round((d - R0) / DAYMS), xa = Math.max(X(d), L), xb = Math.min(X(d + DAYMS), W - R);
-    if (i >= 0 && i < DAYS && xb - xa > 46) o += `<text x="${xa + 5}" y="${T - 9}" font-size="11" font-weight="700" fill="${muted}">DAY${i + 1}</text>`;
+    if (i >= 0 && xb - xa > 46) o += `<text x="${xa + 5}" y="${T - 9}" font-size="11" font-weight="700" fill="${muted}">DAY${i + 1}</text>`;
+  }
+  // 초동 마감선(DAY8 0시): 이 뒤로는 총판에만 더해진다
+  const tCut = R0 + DAYS * DAYMS;
+  if (tCut > t0 && tCut < t1 && tCut < e1) {
+    const bloom = css('--bloom');
+    o += `<line x1="${X(tCut)}" x2="${X(tCut)}" y1="${T}" y2="${H - B}" stroke="${bloom}" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+    o += `<text x="${X(tCut) - 5}" y="${T + 12}" text-anchor="end" font-size="11" font-weight="700" fill="${bloom}">초동 마감</text>`;
   }
 
   // 판매량은 갱신 시각에 계단식으로 오른다. 첫 기록 전 구간은 관측하지 못했으므로 점선.
@@ -652,7 +686,7 @@ function drawLine(days) {
   $('line').innerHTML = s;
 }
 
-function drawBars(cum) {
+function drawBars(cum, done) {
   const W = 720, H = 330, L = 70, R = 20, T = 30, B = 58;
   const items = [...PAST, { ...NOW_ALBUM, v: cum, c: css('--pulse'), now: true }];
   const top = axisMax(Math.max(...items.map(x => x.v)));
@@ -669,14 +703,14 @@ function drawBars(cum) {
     s += `<rect x="${cx - bw / 2}" y="${y}" width="${bw}" height="${Y(0) - y}" rx="3" fill="${it.c}"/>`;
     s += `<text x="${cx}" y="${y - 8}" text-anchor="middle" font-size="12" font-weight="700" fill="${ink}">${fmt(it.v)}</text>`;
     s += `<text x="${cx}" y="${H - B + 22}" text-anchor="middle" font-size="13" font-weight="700" fill="${it.now ? css('--pulse') : ink}">${it.name}</text>`;
-    s += `<text x="${cx}" y="${H - B + 40}" text-anchor="middle" font-size="11" fill="${muted}">${it.now ? '진행 중' : it.kind}</text>`;
+    s += `<text x="${cx}" y="${H - B + 40}" text-anchor="middle" font-size="11" fill="${muted}">${it.now && !done ? '진행 중' : it.kind}</text>`;
   });
   $('bars').innerHTML = s;
   $('pastBody').innerHTML = items.map(it => `<tr${it.now ? ' class="live"' : ''}>
     <td><div class="alb"><img src="covers/${it.cover}.jpg" width="48" height="48" alt="${it.name} 앨범 커버" loading="lazy">
       <div><span class="kind">${it.kind}</span>${it.name}<span class="kind num">${it.date}</span></div></div></td>
     <td>${[].concat(it.title).map(t => `<span class="song">${t}</span>`).join('')}</td>
-    <td class="num">${fmt(it.v)}${it.now ? '<span class="pill">진행 중</span>' : ''}</td></tr>`).join('');
+    <td class="num">${fmt(it.v)}${it.now && !done ? '<span class="pill">진행 중</span>' : ''}</td></tr>`).join('');
 }
 
 // data 브랜치 파일은 GitHub API와 raw 주소로 읽는다. API는 즉시 최신이지만 무인증이라 IP당 시간 60회이고 304 응답도 차감된다
