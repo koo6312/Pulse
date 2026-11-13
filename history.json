@@ -20681,5 +20681,20 @@
    }
   ],
   "totalSales": 1144
+ },
+ {
+  "fetchedAt": "2026-11-13T01:02:19.549Z",
+  "aggregatedAt": "2026.11.13 10:01",
+  "chartSize": 100,
+  "versions": [
+   {
+    "rank": 33,
+    "version": "QR",
+    "name": "PULSE: 미니앨범 4집, QR ver.",
+    "sales": 9,
+    "index": 5.4
+   }
+  ],
+  "totalSales": 9
  }
 ]
