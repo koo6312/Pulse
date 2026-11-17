@@ -29321,5 +29321,34 @@
    }
   ],
   "totalSales": 201
+ },
+ {
+  "fetchedAt": "2026-11-17T12:07:21.796Z",
+  "aggregatedAt": "2026.11.17 21:05",
+  "chartSize": 100,
+  "versions": [
+   {
+    "rank": 57,
+    "version": "Guardian",
+    "name": "PULSE: 미니앨범 4집, Guardian ver.",
+    "sales": 60,
+    "index": 177
+   },
+   {
+    "rank": 84,
+    "version": "QR",
+    "name": "PULSE: 미니앨범 4집, QR ver.",
+    "sales": 105,
+    "index": 63
+   },
+   {
+    "rank": 91,
+    "version": "Standard",
+    "name": "PULSE: 미니앨범 4집, Standard ver.",
+    "sales": 38,
+    "index": 51.8
+   }
+  ],
+  "totalSales": 203
  }
 ]
