@@ -38946,5 +38946,12 @@
    }
   ],
   "totalSales": 0
+ },
+ {
+  "fetchedAt": "2026-11-26T01:08:01.941Z",
+  "aggregatedAt": "2026.11.26 10:06",
+  "chartSize": 100,
+  "versions": [],
+  "totalSales": 0
  }
 ]
